@@ -38,6 +38,7 @@ const secret = "WARLEYGONCALVESDOSREIS"
 
 // criando o middleware para confimar o tokem de autenticação do usuario
 function checkToken(req, res, next) {
+   
     // crio a constante recebendo o parametro authorization do header da solicitação
     const autHeader = req.headers['authorization']
     //extraio o token separando o array pelo "" e pegando a segunda parte
@@ -53,6 +54,7 @@ function checkToken(req, res, next) {
 
         const decoded = jwt.verify(tokenRecebido, secret);
         next()
+        
     } catch (error) {
         //res.status(422).json({ msg: "tokem invalido", error })
     }
@@ -165,7 +167,8 @@ app.post('/project/merchant/create', checkToken, async (req, res) => {
             let newMerchant = await pool.query('INSERT INTO merchants (name,email,phone,project_id) VALUES ($1,$2,$3,$4) RETURNING *', [linha, emailMerchant[key], phoneMerchant[key], project_id])
 
         })
-        res.status(200).json({ msg: " adicionado(s)" })
+        const getMerchants = await pool.query("SELECT * from merchants where project_id=($1) AND status!='0' ORDER BY id ASC", [project_id])
+        res.status(200).send(getMerchants.rows)
     } catch (err) {
         console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
@@ -175,6 +178,7 @@ app.get('/project/merchants/:id', checkToken, async (req, res) => {
     const id = req.params.id
     try {
         const getMerchants = await pool.query("SELECT * from merchants where project_id=($1) AND status!='0'", [id])
+
         res.status(200).send(getMerchants.rows)
     } catch (err) {
         console.log(err)
@@ -215,13 +219,12 @@ app.get('/equipment/epis', checkToken, async (req, res) => {
     }
 })
 app.get('/equipments', checkToken, async (req, res) => {
-    const { epi_id } = req.params;
     const autHeader = req.headers['authorization']
     const tokenRecebido = autHeader && autHeader.split(" ")[1]
     const decoded = jwt.verify(tokenRecebido, secret);
     try {
 
-        const getEquipments = await pool.query("SELECT equipments.approval_certificate,equipments.classification_size_id,equipments.current_balance,equipments.id,equipments.ideal_balance,equipments.price,equipments.validity, to_char(equipments.validity_certificate_approval, 'DD/MM/YYYY') as validity_certificate_approval, classification_sizes.size,epis.type from equipments JOIN epis ON equipments.epi_id=epis.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id where equipments.project_id=($1) AND equipments.status=($2) ORDER BY equipments.id DESC", [decoded.project_id, 1])
+        const getEquipments = await pool.query("SELECT equipments.approval_certificate,equipments.price,equipments.classification_size_id,equipments.current_balance,equipments.id,equipments.ideal_balance,equipments.price,equipments.validity, to_char(equipments.validity_certificate_approval, 'DD/MM/YYYY') as validity_certificate_approval, CASE WHEN equipments.current_balance >= equipments.ideal_balance THEN 'ALTO' WHEN equipments.current_balance < equipments.ideal_balance THEN 'BAIXO' END status_balance,classification_sizes.size,epis.type from equipments JOIN epis ON equipments.epi_id=epis.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id where equipments.project_id=($1) AND equipments.status=($2) ORDER BY equipments.id DESC", [decoded.project_id, 1])
 
         res.status(200).send(getEquipments.rows)
     } catch (err) {
@@ -274,14 +277,62 @@ app.post('/equipment/create', checkToken, async (req, res) => {
             return res.status(400).json({ msg: "Parece que você já tem esse equipameto cadastro em seu projeto!" })
         }
         const newEquipment = await pool.query('INSERT INTO equipments (epi_id,approval_certificate, classification_size_id, validity_certificate_approval, validity, ideal_balance, current_balance, price,project_id ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *', [epi_id, approval_certificate, classification_size_id, validity_certificate_approval, validity, ideal_balance, current_balance, price, decoded.project_id])
-        if (newEquipment.rowCount > 0) {
-            res.status(200).send(newEquipment.rows[0])
+       console.log(newEquipment.rows[0].id)
+        if (newEquipment.rowCount > 0) { 
+            const newRegistro = await pool.query("SELECT equipments.approval_certificate,equipments.classification_size_id,equipments.current_balance,equipments.id,equipments.ideal_balance,equipments.price,equipments.validity, to_char(equipments.validity_certificate_approval, 'DD/MM/YYYY') as validity_certificate_approval, classification_sizes.size,CASE WHEN equipments.current_balance >= equipments.ideal_balance THEN 'ALTO' WHEN equipments.current_balance < equipments.ideal_balance THEN 'BAIXO' END status_balance,epis.type from equipments JOIN epis ON equipments.epi_id=epis.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id where equipments.project_id=($1) AND equipments.id=($2)",[decoded.project_id, newEquipment.rows[0].id])
+            res.status(200).send(newRegistro.rows[0])
         }
     } catch (err) {
         console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
     }
 })
+app.post('/equipment/buy/create', checkToken, async (req, res) => {     
+    const { merchant_id, list_equipment_id, qty, current_price } = req.body;
+    try {
+        const autHeader = req.headers['authorization']
+        const tokenRecebido = autHeader && autHeader.split(" ")[1]
+        const decoded = jwt.verify(tokenRecebido, secret);
+        
+        list_equipment_id.map(async (equipment, key) => {
+            const updateEquipment = await pool.query('UPDATE equipments SET price=($1), current_balance= current_balance+($2) where id=($3) and project_id=($4) RETURNING *', [current_price[key], qty[key], equipment, decoded.project_id])
+            const newBuyEquipment = await pool.query('INSERT INTO buy_histories ( merchant_id, equipment_id,current_price, qty,project_id) VALUES ($1,$2,$3,$4,$5) RETURNING *', [merchant_id ,equipment, current_price[key], qty[key], decoded.project_id])
+        })
+        return res.status(200).json({ msg: "Registrado" })
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+app.get('/equipment/history/:equipment_id', checkToken, async (req, res) => {
+    const { equipment_id } = req.params;
+    try {
+        const getHistoryBuy = await pool.query("SELECT  buy_histories.qty, to_char(buy_histories.created_at, 'DD/MM/YYYY') as date, merchants.name as merchantname from buy_histories JOIN merchants ON buy_histories.merchant_id=merchants.id where equipment_id=($1) ORDER BY buy_histories.id DESC  LIMIT 10", [equipment_id])
+      
+        const getHistoryProvided = await pool.query("SELECT  provided_histories.qty, to_char(provided_histories.created_at, 'DD/MM/YYYY') as date, employees.name as employeename from provided_histories JOIN employees ON provided_histories.employee_id=employees.id where equipment_id=($1) ORDER BY provided_histories.id DESC  LIMIT 10", [equipment_id])
+
+        res.status(200).json({ listBuy: getHistoryBuy.rows,listProvided:getHistoryProvided.rows })
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+app.get('/equipment/cart', checkToken, async (req, res) => {
+    const autHeader = req.headers['authorization']
+    const tokenRecebido = autHeader && autHeader.split(" ")[1]
+    const decoded = jwt.verify(tokenRecebido, secret);
+    console.log(decoded.project_id)
+    try {
+
+        const getCart = await pool.query("SELECT equipments.id,(equipments.ideal_balance - equipments.current_balance) as qty, epis.type,classification_sizes.size, equipments.epi_id FROM equipments JOIN epis ON equipments.epi_id=epis.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id where equipments.ideal_balance > equipments.current_balance and equipments.project_id=($1) and equipments.status=($2)",[decoded.project_id,'1'])
+      
+        res.status(200).send(getCart.rows)
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+
 app.patch('/equipment/update', checkToken, async (req, res) => {
     const { id, epi_id, approval_certificate, classification_size_id, validity_certificate_approval, validity, ideal_balance, current_balance, price } = req.body;
     console.log(req.body)
@@ -292,8 +343,8 @@ app.patch('/equipment/update', checkToken, async (req, res) => {
         const updateEquipment = await pool.query('UPDATE equipments SET approval_certificate=($1), classification_size_id=($2), validity_certificate_approval=($3), validity=($4), ideal_balance=($5), current_balance=($6), price=($7) where id=($8) and project_id=($9) RETURNING *', [approval_certificate, classification_size_id, validity_certificate_approval, validity, ideal_balance, current_balance, price, id, decoded.project_id])
         //data de validação nao pode ser menor que hoje
         //se prazo de validade for menor que o atual, alguns fornecimentos por passar a estar vencidos
-        console.log(updateEquipment.rows[0])
-        res.status(200).json({ msg: "Editado com sucesso(s)" })
+        const Registro = await pool.query("SELECT equipments.approval_certificate,equipments.classification_size_id,equipments.current_balance,equipments.id,equipments.ideal_balance,equipments.price,equipments.validity, to_char(equipments.validity_certificate_approval, 'DD/MM/YYYY') as validity_certificate_approval, classification_sizes.size,CASE WHEN equipments.current_balance >= equipments.ideal_balance THEN 'ALTO' WHEN equipments.current_balance < equipments.ideal_balance THEN 'BAIXO' END status_balance, epis.type from equipments JOIN epis ON equipments.epi_id=epis.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id where equipments.project_id=($1) AND equipments.id=($2)",[decoded.project_id, updateEquipment.rows[0].id])
+            res.status(200).send(Registro.rows[0])
     } catch (err) {
         console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
@@ -308,8 +359,8 @@ app.patch('/equipment/delete/:id', checkToken, async (req, res) => {
         const decoded = jwt.verify(tokenRecebido, secret);
 
         const getType = await pool.query("SELECT epi_id from equipments where id=($1)", [id])
-        const getEquipment = await pool.query("SELECT epi_id from equipments where  epi_id=($1) AND project_id=($2) AND status=($3)", [getType.rows[0].epi_id, decoded.project_id, 1])
-        if (getEquipment.rowCount > 0) {
+        const getEquipment = await pool.query("SELECT epi_id from equipments where epi_id=($1) AND project_id=($2) AND status=($3)", [getType.rows[0].epi_id, decoded.project_id, 1])
+        if (getEquipment.rowCount <= 0) {
             return res.status(400).json({ msg: "Você não pode excluir esse equipamento, pois está vinculado a um cargo/função" })
         }
         const deleteEquipment = await pool.query('UPDATE equipments SET status=($1) where id=($2) and project_id=($3) RETURNING *', [0, id, decoded.project_id])
@@ -346,7 +397,8 @@ app.post('/office/create', checkToken, async (req, res) => {
         }
         const newOffice = await pool.query('INSERT INTO offices (name,epi_id, project_id ) VALUES ($1,$2,$3) RETURNING *', [name, selected, decoded.project_id])
         if (newOffice.rowCount > 0) {
-            return res.status(200).json({ msg: "Cadastrado!" })
+            const newOffice2 = await pool.query("SELECT * FROM offices where offices.id=($1) AND project_id=($2)", [newOffice.rows[0].id,decoded.project_id])
+           return res.status(200).send(newOffice2.rows[0])
             //res.status(200).send(newEquipment.rows[0])
         }
     } catch (err) {
@@ -385,7 +437,7 @@ app.get('/office/read/:id', checkToken, async (req, res) => {
 })
 
 app.patch('/office/update', checkToken, async (req, res) => {
-    const { id, selected } = req.body;
+    const { id, selected,name } = req.body;
 
     try {
         const autHeader = req.headers['authorization']
@@ -405,9 +457,10 @@ app.patch('/office/update', checkToken, async (req, res) => {
                 return element;
         });
 
-        const updateOffice = await pool.query('UPDATE offices SET epi_id=($1) where id=($2) and project_id=($3) RETURNING *', [selected, id, decoded.project_id])
+        const updateOffice = await pool.query('UPDATE offices SET epi_id=($1),name=($2) where id=($3) and project_id=($4) RETURNING *', [selected, name, id, decoded.project_id])
+        const getOffice2 = await pool.query("SELECT * FROM offices where offices.id=($1) AND project_id=($2)", [id,decoded.project_id])
         //saber quais epis sairam e entraram
-        res.status(200).json({ msg: "Editado com sucesso(s)" })
+        res.status(200).send(getOffice2.rows[0])
     } catch (err) {
         console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
