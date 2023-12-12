@@ -384,6 +384,7 @@ app.get('/equipments/inputType', checkToken, async (req, res) => {
     }
 })
 
+//offices________________________________________________________________________________________________
 app.post('/office/create', checkToken, async (req, res) => {
     const { name, selected, label } = req.body;
     try {
@@ -480,6 +481,173 @@ app.patch('/office/delete/:id', checkToken, async (req, res) => {
         }
         const deleteEmloyees = await pool.query('UPDATE offices SET status=($1) where id=($2) and project_id=($3) RETURNING *', [0, id, decoded.project_id])
         res.status(200).json({ msg: "Excluído com sucesso(s)" })
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+app.get('/offices/inputType', checkToken, async (req, res) => {
+    const autHeader = req.headers['authorization']
+    const tokenRecebido = autHeader && autHeader.split(" ")[1]
+    const decoded = jwt.verify(tokenRecebido, secret);
+    try {
+        const getOffices = await pool.query("SELECT DISTINCT offices.id, offices,name from offices where offices.project_id=($1) AND offices.status=($2) ORDER BY offices.name ASC", [decoded.project_id, 1])
+        console.log(getOffices.rows)
+        res.status(200).send(getOffices.rows)
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+//employees________________________________________________________________________________________________
+app.post('/employee/create', checkToken, async (req, res) => {
+    const { name, registration, office_id, size_shirt, size_pant, size_shoe, size_respirator } = req.body;
+    try {
+        const autHeader = req.headers['authorization']
+        const tokenRecebido = autHeader && autHeader.split(" ")[1]
+        const decoded = jwt.verify(tokenRecebido, secret);
+
+        const getEmployee = await pool.query("SELECT registration from employees where  registration=($1) AND project_id=($2) AND status=($3)", [registration, decoded.project_id, 1])
+        if (getEmployee.rowCount > 0) {
+            return res.status(400).json({ msg: "Parece que você já cadastrou esse colaborador em seu projeto!" })
+        }
+        const newEmployee = await pool.query('INSERT INTO employees (name, registration, office_id, size_shirt, size_pant, size_shoe, size_respirator, project_id ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *', [name, registration, office_id, size_shirt, size_pant, size_shoe, size_respirator, decoded.project_id])
+        const getEquipments= await pool.query("SELECT epi_id from offices where id=($1) AND project_id=($2) AND status=($3)", [newEmployee.rows[0].office_id, decoded.project_id, 1])
+        console.log(getEquipments.rows[0].epi_id)
+
+        const newControl = await pool.query('INSERT INTO controls (employee_id,office_id,equipment_id, motive) VALUES ($1,$2,$3,$4) RETURNING *', [employee_id,office_id,equipment_id, motive, decoded.project_id])
+        
+        if (newEmployee.rowCount > 0) {
+            const newEmployee2 = await pool.query("SELECT employees.id, employees.registration,employees.name, employees.office_id,employees.size_shirt,employees.size_pant, employees.size_shoe,employees.size_respirator,offices.name as nameOffice FROM employees JOIN offices ON employees.office_id =offices.id where employees.id=($1) AND employees.project_id=($2)", [newEmployee.rows[0].id,decoded.project_id])
+
+            return res.status(200).send(newEmployee2.rows[0])
+        }
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+app.get('/employees', checkToken, async (req, res) => {
+    const autHeader = req.headers['authorization']
+    const tokenRecebido = autHeader && autHeader.split(" ")[1]
+    const decoded = jwt.verify(tokenRecebido, secret);
+    try {
+        const getEmployees= await pool.query("SELECT employees.id,employees.registration, employees.name, employees.office_id,employees.size_shirt,employees.size_pant, employees.size_shoe,employees.size_respirator,offices.name as nameOffice FROM employees JOIN offices ON employees.office_id =offices.id where employees.project_id=($1) AND employees.status !=($2)", [decoded.project_id, 0])
+        console.log(getEmployees.rows)
+        res.status(200).send(getEmployees.rows)
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+
+app.get('/employee/read/:id', checkToken, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const getOffice = await pool.query("SELECT * FROM employees where employees.id=($1)", [id])
+        if (getOffice.rowCount < 1) {
+            return res.status(400).json({ msg: "Houve um erro na solicitação: " })
+        } else {
+            res.status(200).send(getOffice.rows[0])
+        }
+
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+
+app.patch('/employee/update', checkToken, async (req, res) => {
+    const { id, name, registration, office_id, size_shirt, size_pant, size_shoe, size_respirator  } = req.body;
+
+    try {
+        const autHeader = req.headers['authorization']
+        const tokenRecebido = autHeader && autHeader.split(" ")[1]
+        const decoded = jwt.verify(tokenRecebido, secret);
+/*
+saber se a funcao alterou e revisar episs
+*/
+        const updateEmployee= await pool.query('UPDATE employees SET  name=($1), registration=($2), office_id=($3), size_shirt=($4), size_pant=($5), size_shoe=($6), size_respirator=($7)  where id=($8) and project_id=($9) RETURNING *', [ name, registration, office_id, size_shirt, size_pant, size_shoe, size_respirator,  id, decoded.project_id])
+        const getEmployee2 = await pool.query("SELECT employees.id, employees.registration,employees.name, employees.office_id,employees.size_shirt,employees.size_pant, employees.size_shoe,employees.size_respirator,offices.name as nameOffice FROM employees JOIN offices ON employees.office_id =offices.id where employees.id=($1) AND employees.project_id=($2)", [updateEmployee.rows[0].id,decoded.project_id])
+//saber quais epis sairam e entraram
+console.log(getEmployee2.rows[0])
+        res.status(200).send(getEmployee2.rows[0])
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+
+app.patch('/employee/delete/:id', checkToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const autHeader = req.headers['authorization']
+        const tokenRecebido = autHeader && autHeader.split(" ")[1]
+        const decoded = jwt.verify(tokenRecebido, secret);
+
+        const deleteEmloyees = await pool.query('UPDATE employees SET status=($1) where id=($2) and project_id=($3) RETURNING *', [0, id, decoded.project_id])
+        res.status(200).json({ msg: "Excluído com sucesso(s)" })
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+app.get('/employees/inputType', checkToken, async (req, res) => {
+    const autHeader = req.headers['authorization']
+    const tokenRecebido = autHeader && autHeader.split(" ")[1]
+    const decoded = jwt.verify(tokenRecebido, secret);
+    try {
+        const getOffices = await pool.query("SELECT DISTINCT offices.id, offices,name from offices where offices.project_id=($1) AND offices.status=($2) ORDER BY offices.name ASC", [decoded.project_id, 1])
+        console.log(getOffices.rows)
+        res.status(200).send(getOffices.rows)
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+
+
+//classification_sizes________________________________________________________________________________________________
+app.get('/classification_sizes/shirts', checkToken, async (req, res) => {
+   
+    try {
+        const getShits= await pool.query("SELECT * FROM classification_sizes where classification_size=($1) ORDER BY id ASC", [1])
+
+        res.status(200).send(getShits.rows)
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+app.get('/classification_sizes/pants', checkToken, async (req, res) => {
+   
+    try {
+        const getShits= await pool.query("SELECT * FROM classification_sizes where classification_size=($1) ORDER BY id ASC", [3])
+
+        res.status(200).send(getShits.rows)
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+app.get('/classification_sizes/shoes', checkToken, async (req, res) => {
+   
+    try {
+        const getShits= await pool.query("SELECT * FROM classification_sizes where classification_size=($1) ORDER BY id ASC", [4])
+
+        res.status(200).send(getShits.rows)
+    } catch (err) {
+        console.log(err)
+        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+    }
+})
+app.get('/classification_sizes/respirators', checkToken, async (req, res) => {
+   
+    try {
+        const getShits= await pool.query("SELECT * FROM classification_sizes where classification_size=($1) ORDER BY id ASC", [2])
+
+        res.status(200).send(getShits.rows)
     } catch (err) {
         console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
