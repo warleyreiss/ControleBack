@@ -62,7 +62,7 @@ function checkToken(req, res, next) {
 
 app.post('/authentication/signin', async (req, res) => {
     const { email, password } = req.body
-    console.log(req.body)
+
     try {
         if (email && password) {
             //requisição no banco
@@ -71,6 +71,7 @@ app.post('/authentication/signin', async (req, res) => {
             const confirmPassaWord = await bcrypt.compare(password, getUser.rows[0].password)
             //se nao conferir envio msg de erro
             if (confirmPassaWord) {
+                console.log('estou aqui ')
                 const getProject = await pool.query('SELECT * FROM projects where id=($1)', [getUser.rows[0].project_id])
                 const token = jwt.sign(
                     {
@@ -83,7 +84,7 @@ app.post('/authentication/signin', async (req, res) => {
                 res.status(200).json({
                     token: token,
                     userId: getUser.rows[0].id,
-                    userName:getUser.rows[0].name,
+                    userName: getUser.rows[0].name,
                     userType: getUser.rows[0].type,
                     userEmail: getUser.rows[0].email,
                     userImage: getUser.rows[0].image,
@@ -93,25 +94,69 @@ app.post('/authentication/signin', async (req, res) => {
                     msg: "Seja bem vindo novamente!",
                 })
             } else {
+                console.log('estou aqui não ')
                 res.status(422).json({ msg_alert: "Senha e usuários não conferem" })
             }
         } else {
             res.status(422).json({ msg_alert: "Preencha todos os campos" })
         }
     } catch {
+       
         res.status(400).json({ msg_alert: "usuario não encontrado" })
+    }
+})
+app.post('/authentication/reset', async (req, res) => {
+    const { email} = req.body
+    try {
+        if (email) {
+            const password =    Math.floor(Math.random() * 99999).toString()
+            const passwordBcrypt = await    bcrypt.hash( password,12)
+            console.log('pass é '+password)
+            const updateUser = await pool.query('UPDATE users SET reset_password=($1) where email=($2) RETURNING *', [passwordBcrypt, email])
+            //enviar por email, se receber msg positiva prosigo
+            res.status(200).json({ msg_alert: "Um código de segurança foi enviado em seu email" })
+        } else {
+            res.status(422).json({ msg_alert: "Informe seu email" })
+        }
+    } catch(err) {
+        
+        res.status(400).json({ msg_alert: "Algo errado aconteceu" })
+    }
+})
+app.post('/authentication/reseted', async (req, res) => {
+    const { email,secret,password} = req.body
+    try {
+        if (email) {
+            const getUser= await pool.query("SELECT id, reset_password from users where email=($1)", [email])
+
+            const confirmPassaWord = await bcrypt.compare(secret, getUser.rows[0].reset_password)
+            if (confirmPassaWord) {
+                console.log('oi3')
+                const passwordBcrypt = await    bcrypt.hash( password,12)
+                const updateUser = await pool.query('UPDATE users SET password=($1) where id=($2) RETURNING *', [passwordBcrypt, getUser.rows[0].id])
+                console.log(updateUser.rows[0])
+                res.status(200).json({ msg_alert: "Senha alterada, gentileza fazer login" })
+            }else{
+                res.status(400).json({ msg_alert: "]código de segurnaça incorreto" })
+            }
+        } else {           
+            res.status(422).json({ msg_alert: "Informe seu email" })
+        }
+    } catch(err) {
+        console.log(err)
+        res.status(400).json({ msg_alert: "Algo errado aconteceu" })
     }
 })
 
 //Projeto ________________________________________________________________________________________________
 app.post('/project/create', async (req, res) => {
-    const { nameUser, email, nameProject,password } = req.body;
+    const { nameUser, email, nameProject, password } = req.body;
 
     try {
         const salt = await bcrypt.genSalt(12)
         const passwordBcrypt = await bcrypt.hash(password, salt)
         const newProject = await pool.query('INSERT INTO projects (name) VALUES ($1) RETURNING *', [nameProject])
-        const newUser = await pool.query('INSERT INTO users (name, email, type,project_id,password) VALUES ($1,$2,$3,$4,$5) RETURNING *', [nameUser, email, 'MANAGER', newProject.rows[0].id,passwordBcrypt])
+        const newUser = await pool.query('INSERT INTO users (name, email, type,project_id,password) VALUES ($1,$2,$3,$4,$5) RETURNING *', [nameUser, email, 'MANAGER', newProject.rows[0].id, passwordBcrypt])
         const token = jwt.sign(
             {
                 userid: newUser.rows[0].id,
