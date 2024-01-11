@@ -143,7 +143,6 @@ app.post('/authentication/reseted', async (req, res) => {
             res.status(422).json({ msg_alert: "Informe seu email" })
         }
     } catch(err) {
-        console.log(err)
         res.status(400).json({ msg_alert: "Algo errado aconteceu" })
     }
 })
