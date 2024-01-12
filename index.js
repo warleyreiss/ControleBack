@@ -12,7 +12,7 @@ const { geteuid } = require("process")
 const { getDefaultHighWaterMark } = require("stream")
 const { get } = require("http")
 require('dotenv').config()
-const PORT = process.env.PORT || 8081
+const PORT = process.env.PORT || 8080
 const pool = new Pool({
     connectionString: "postgres://itlciaeb:1-WPNlUxLrrety67AONnYGWqLBesWR1s@kesavan.db.elephantsql.com/itlciaeb"
 })
@@ -25,7 +25,6 @@ const dataHora = new Date();
 dataHora.setHours(dataHora.getHours() - 3);
 
 app.get('/', (req, res) => {
-
     res.status(200).json({ msg: "bem- vindo! status:" + dataHora + "| -v 1.0" })
 })
 
