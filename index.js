@@ -14,7 +14,7 @@ const { get } = require("http")
 require('dotenv').config()
 const PORT = process.env.PORT || 8080
 const pool = new Pool({
-    connectionString: "postgres://itlciaeb:1-WPNlUxLrrety67AONnYGWqLBesWR1s@kesavan.db.elephantsql.com/itlciaeb"
+    connectionString: process.env.POSTGRES_URL || "postgres://itlciaeb:1-WPNlUxLrrety67AONnYGWqLBesWR1s@kesavan.db.elephantsql.com/itlciaeb"
 })
 const app = express()
 app.use(cors())
