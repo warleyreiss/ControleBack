@@ -277,7 +277,7 @@ app.get('/equipment/read/:id', checkToken, async (req, res) => {
 
     try {
 
-        const getEquipment = await pool.query("SELECT equipments.approval_certificate,equipments.epi_id, equipments.classification_size_id,equipments.current_balance,equipments.id,equipments.ideal_balance,equipments.price,equipments.validity, to_char(equipments.validity_certificate_approval, 'YYYY/MM/DD') as validity_certificate_approval  FROM equipments where equipments.id=($1)", [id])
+        const getEquipment = await pool.query("SELECT equipments.epi_id, equipments.classification_size_id,equipments.current_balance,equipments.id,equipments.ideal_balance,equipments.price,equipments.validity FROM equipments where equipments.id=($1)", [id])
 
         if (getEquipment.rowCount < 1) {
             return res.status(400).json({ msg: "Houve um erro na solicitação: " })
