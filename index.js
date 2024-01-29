@@ -11,6 +11,8 @@ const { Console } = require("console")
 const { geteuid } = require("process")
 const { getDefaultHighWaterMark } = require("stream")
 const { get } = require("http")
+const fs = require('fs');
+const imageDataURI = require('image-data-uri')
 require('dotenv').config()
 const PORT = process.env.PORT || 8080
 const pool = new Pool({
@@ -151,6 +153,8 @@ app.post('/project/create', async (req, res) => {
     const { nameUser, email, nameProject, password } = req.body;
 
     try {
+        const getUser= await pool.query("SELECT * from users where email=($1)", [email])
+        if(getUser.rowCount<1){
         const salt = await bcrypt.genSalt(12)
         const passwordBcrypt = await bcrypt.hash(password, salt)
         const newProject = await pool.query('INSERT INTO projects (name) VALUES ($1) RETURNING *', [nameProject])
@@ -175,18 +179,21 @@ app.post('/project/create', async (req, res) => {
             projectPlan: newProject.rows[0].plan,
             msg: "Seu novo projeto foi criado com sucesso!",
         })
+    }else{
+        return res.status(400).json({msg:'Email já cadastrado'})
+    }
     } catch (err) {
-        console.log(err)
-        return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
+        return res.status(400).json({ msg: "Esse email já está em uso: "})
     }
 })
 app.get('/project/read/:id', checkToken, async (req, res) => {
     const id = req.params.id
     try {
+        if(id){
         const getProjet = await pool.query("SELECT * from projects where id=($1)", [id])
         res.status(200).json({ registros: getProjet.rows[0] })
+        }
     } catch (err) {
-        console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
     }
 })
@@ -194,8 +201,14 @@ app.patch('/project/update', checkToken, async (req, res) => {
     const { project_id, email, name, phone, cpf_cnpj, logo } = req.body;
     try {
         const updateProject = await pool.query('UPDATE projects SET name=($1),cpf_cnpj=($2),phone=($3),logo=($4),email=($5) where id=($6) RETURNING *', [name, cpf_cnpj, phone, logo, email, project_id])
-        res.status(200).json({ msg: "Dados alterado com sucesso!" })
-    } catch (err) {
+        res.status(200).json({
+            projectName:updateProject.rows[0].name,
+            projectCpf_cnpj:updateProject.rows[0].cpf_cnpj,
+            projectEmail:updateProject.rows[0].email,
+            projectPhone:updateProject.rows[0].phone,
+            projectLogo:updateProject.rows[0].logo,
+        })
+    } catch (err) { 
         console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
     }
