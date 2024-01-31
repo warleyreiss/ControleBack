@@ -102,48 +102,48 @@ app.post('/authentication/signin', async (req, res) => {
             res.status(422).json({ msg_alert: "Preencha todos os campos" })
         }
     } catch {
-       
+
         res.status(400).json({ msg_alert: "usuario não encontrado" })
     }
 })
 app.post('/authentication/reset', async (req, res) => {
-    const { email} = req.body
+    const { email } = req.body
     try {
         if (email) {
-            const password =    Math.floor(Math.random() * 99999).toString()
-            const passwordBcrypt = await    bcrypt.hash( password,12)
-            console.log('pass é '+password)
+            const password = Math.floor(Math.random() * 99999).toString()
+            const passwordBcrypt = await bcrypt.hash(password, 12)
+            console.log('pass é ' + password)
             const updateUser = await pool.query('UPDATE users SET reset_password=($1) where email=($2) RETURNING *', [passwordBcrypt, email])
             //enviar por email, se receber msg positiva prosigo
             res.status(200).json({ msg_alert: "Um código de segurança foi enviado em seu email" })
         } else {
             res.status(422).json({ msg_alert: "Informe seu email" })
         }
-    } catch(err) {
-        
+    } catch (err) {
+
         res.status(400).json({ msg_alert: "Algo errado aconteceu" })
     }
 })
 app.post('/authentication/reseted', async (req, res) => {
-    const { email,secret,password} = req.body
+    const { email, secret, password } = req.body
     try {
         if (email) {
-            const getUser= await pool.query("SELECT id, reset_password from users where email=($1)", [email])
+            const getUser = await pool.query("SELECT id, reset_password from users where email=($1)", [email])
 
             const confirmPassaWord = await bcrypt.compare(secret, getUser.rows[0].reset_password)
             if (confirmPassaWord) {
                 console.log('oi3')
-                const passwordBcrypt = await    bcrypt.hash( password,12)
+                const passwordBcrypt = await bcrypt.hash(password, 12)
                 const updateUser = await pool.query('UPDATE users SET password=($1) where id=($2) RETURNING *', [passwordBcrypt, getUser.rows[0].id])
                 console.log(updateUser.rows[0])
                 res.status(200).json({ msg_alert: "Senha alterada, gentileza fazer login" })
-            }else{
+            } else {
                 res.status(400).json({ msg_alert: "]código de segurnaça incorreto" })
             }
-        } else {           
+        } else {
             res.status(422).json({ msg_alert: "Informe seu email" })
         }
-    } catch(err) {
+    } catch (err) {
         res.status(400).json({ msg_alert: "Algo errado aconteceu" })
     }
 })
@@ -153,45 +153,45 @@ app.post('/project/create', async (req, res) => {
     const { nameUser, email, nameProject, password } = req.body;
 
     try {
-        const getUser= await pool.query("SELECT * from users where email=($1)", [email])
-        if(getUser.rowCount<1){
-        const salt = await bcrypt.genSalt(12)
-        const passwordBcrypt = await bcrypt.hash(password, salt)
-        const newProject = await pool.query('INSERT INTO projects (name) VALUES ($1) RETURNING *', [nameProject])
-        const newUser = await pool.query('INSERT INTO users (name, email, type,project_id,password) VALUES ($1,$2,$3,$4,$5) RETURNING *', [nameUser, email, 'MANAGER', newProject.rows[0].id, passwordBcrypt])
-        const token = jwt.sign(
-            {
-                userid: newUser.rows[0].id,
-                project_id: newProject.rows[0].id,
-            },
-            secret,
-        )
-        //ENCAMINHANDO OS DADOS NECESSÁRIOS AO FRONT
-        return res.status(200).json({
-            token: token,
-            userId: newUser.rows[0].id,
-            userName: newUser.rows[0].name,
-            userType: newUser.rows[0].type,
-            userEmail: newUser.rows[0].email,
-            userImage: newUser.rows[0].image,
-            projectId: newProject.rows[0].id,
-            projectName: newProject.rows[0].name,
-            projectPlan: newProject.rows[0].plan,
-            msg: "Seu novo projeto foi criado com sucesso!",
-        })
-    }else{
-        return res.status(400).json({msg:'Email já cadastrado'})
-    }
+        const getUser = await pool.query("SELECT * from users where email=($1)", [email])
+        if (getUser.rowCount < 1) {
+            const salt = await bcrypt.genSalt(12)
+            const passwordBcrypt = await bcrypt.hash(password, salt)
+            const newProject = await pool.query('INSERT INTO projects (name) VALUES ($1) RETURNING *', [nameProject])
+            const newUser = await pool.query('INSERT INTO users (name, email, type,project_id,password) VALUES ($1,$2,$3,$4,$5) RETURNING *', [nameUser, email, 'MANAGER', newProject.rows[0].id, passwordBcrypt])
+            const token = jwt.sign(
+                {
+                    userid: newUser.rows[0].id,
+                    project_id: newProject.rows[0].id,
+                },
+                secret,
+            )
+            //ENCAMINHANDO OS DADOS NECESSÁRIOS AO FRONT
+            return res.status(200).json({
+                token: token,
+                userId: newUser.rows[0].id,
+                userName: newUser.rows[0].name,
+                userType: newUser.rows[0].type,
+                userEmail: newUser.rows[0].email,
+                userImage: newUser.rows[0].image,
+                projectId: newProject.rows[0].id,
+                projectName: newProject.rows[0].name,
+                projectPlan: newProject.rows[0].plan,
+                msg: "Seu novo projeto foi criado com sucesso!",
+            })
+        } else {
+            return res.status(400).json({ msg: 'Email já cadastrado' })
+        }
     } catch (err) {
-        return res.status(400).json({ msg: "Esse email já está em uso: "})
+        return res.status(400).json({ msg: "Esse email já está em uso: " })
     }
 })
 app.get('/project/read/:id', checkToken, async (req, res) => {
     const id = req.params.id
     try {
-        if(id){
-        const getProjet = await pool.query("SELECT * from projects where id=($1)", [id])
-        res.status(200).json({ registros: getProjet.rows[0] })
+        if (id) {
+            const getProjet = await pool.query("SELECT * from projects where id=($1)", [id])
+            res.status(200).json({ registros: getProjet.rows[0] })
         }
     } catch (err) {
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
@@ -202,13 +202,13 @@ app.patch('/project/update', checkToken, async (req, res) => {
     try {
         const updateProject = await pool.query('UPDATE projects SET name=($1),cpf_cnpj=($2),phone=($3),logo=($4),email=($5) where id=($6) RETURNING *', [name, cpf_cnpj, phone, logo, email, project_id])
         res.status(200).json({
-            projectName:updateProject.rows[0].name,
-            projectCpf_cnpj:updateProject.rows[0].cpf_cnpj,
-            projectEmail:updateProject.rows[0].email,
-            projectPhone:updateProject.rows[0].phone,
-            projectLogo:updateProject.rows[0].logo,
+            projectName: updateProject.rows[0].name,
+            projectCpf_cnpj: updateProject.rows[0].cpf_cnpj,
+            projectEmail: updateProject.rows[0].email,
+            projectPhone: updateProject.rows[0].phone,
+            projectLogo: updateProject.rows[0].logo,
         })
-    } catch (err) { 
+    } catch (err) {
         console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
     }
@@ -341,14 +341,22 @@ app.post('/equipment/create', checkToken, async (req, res) => {
 })
 app.post('/equipment/buy/create', checkToken, async (req, res) => {
     const { merchant_id, list_equipment_id, qty, current_price } = req.body;
+    console.log(req.body)
     try {
         const autHeader = req.headers['authorization']
         const tokenRecebido = autHeader && autHeader.split(" ")[1]
         const decoded = jwt.verify(tokenRecebido, secret);
 
         list_equipment_id.map(async (equipment, key) => {
-            const updateEquipment = await pool.query('UPDATE equipments SET price=($1), current_balance= current_balance+($2) where id=($3) and project_id=($4) RETURNING *', [current_price[key], qty[key], equipment, decoded.project_id])
-            const newBuyEquipment = await pool.query('INSERT INTO buy_histories ( merchant_id, equipment_id,current_price, qty,project_id) VALUES ($1,$2,$3,$4,$5) RETURNING *', [merchant_id, equipment, current_price[key], qty[key], decoded.project_id])
+            if (qty[key]) {
+                console.log(qty[key])
+                const updateEquipment = await pool.query('UPDATE equipments SET price=($1), current_balance= current_balance+($2) where id=($3) and project_id=($4) RETURNING *', [current_price[key], qty[key], equipment, decoded.project_id])
+                const newBuyEquipment = await pool.query('INSERT INTO buy_histories ( merchant_id, equipment_id,current_price, qty,project_id) VALUES ($1,$2,$3,$4,$5) RETURNING *', [merchant_id, equipment, current_price[key], qty[key], decoded.project_id])
+
+                console.log('feito')
+            } else {
+                console.log('fim')
+            }
         })
         return res.status(200).json({ msg: "Registrado" })
     } catch (err) {
@@ -384,16 +392,15 @@ app.get('/equipment/cart', checkToken, async (req, res) => {
 })
 
 app.patch('/equipment/update', checkToken, async (req, res) => {
-    const { id, epi_id, approval_certificate, classification_size_id, validity_certificate_approval, validity, ideal_balance, current_balance, price } = req.body;
-    console.log(req.body)
+    const { id, epi_id, classification_size_id, validity, ideal_balance, current_balance, price } = req.body;
     try {
         const autHeader = req.headers['authorization']
         const tokenRecebido = autHeader && autHeader.split(" ")[1]
         const decoded = jwt.verify(tokenRecebido, secret);
-        const updateEquipment = await pool.query('UPDATE equipments SET approval_certificate=($1), classification_size_id=($2), validity_certificate_approval=($3), validity=($4), ideal_balance=($5), current_balance=($6), price=($7) where id=($8) and project_id=($9) RETURNING *', [approval_certificate, classification_size_id, validity_certificate_approval, validity, ideal_balance, current_balance, price, id, decoded.project_id])
+        const updateEquipment = await pool.query('UPDATE equipments SET  classification_size_id=($1),  validity=($2), ideal_balance=($3), current_balance=($4), price=($5) where id=($6) and project_id=($7) RETURNING *', [classification_size_id, validity, ideal_balance, current_balance, price, id, decoded.project_id])
         //data de validação nao pode ser menor que hoje
         //se prazo de validade for menor que o atual, alguns fornecimentos por passar a estar vencidos
-        const Registro = await pool.query("SELECT equipments.approval_certificate,equipments.classification_size_id,equipments.current_balance,equipments.id,equipments.ideal_balance,equipments.price,equipments.validity, to_char(equipments.validity_certificate_approval, 'DD/MM/YYYY') as validity_certificate_approval, classification_sizes.size,CASE WHEN equipments.current_balance >= equipments.ideal_balance THEN 'ALTO' WHEN equipments.current_balance < equipments.ideal_balance THEN 'BAIXO' END status_balance, epis.type from equipments JOIN epis ON equipments.epi_id=epis.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id where equipments.project_id=($1) AND equipments.id=($2)", [decoded.project_id, updateEquipment.rows[0].id])
+        const Registro = await pool.query("SELECT equipments.classification_size_id,equipments.current_balance,equipments.id,equipments.ideal_balance,equipments.price,equipments.validity, classification_sizes.size,CASE WHEN equipments.current_balance >= equipments.ideal_balance THEN 'ALTO' WHEN equipments.current_balance < equipments.ideal_balance THEN 'BAIXO' END status_balance, epis.type from equipments JOIN epis ON equipments.epi_id=epis.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id where equipments.project_id=($1) AND equipments.id=($2)", [decoded.project_id, updateEquipment.rows[0].id])
         res.status(200).send(Registro.rows[0])
     } catch (err) {
         console.log(err)
@@ -410,11 +417,15 @@ app.patch('/equipment/delete/:id', checkToken, async (req, res) => {
 
         const getType = await pool.query("SELECT epi_id from equipments where id=($1)", [id])
         const getEquipment = await pool.query("SELECT epi_id from equipments where epi_id=($1) AND project_id=($2) AND status=($3)", [getType.rows[0].epi_id, decoded.project_id, 1])
-        if (getEquipment.rowCount <= 0) {
+
+        if (getEquipment.rowCount <= 1) {
+            //verifico aqui as funcões
             return res.status(400).json({ msg: "Você não pode excluir esse equipamento, pois está vinculado a um cargo/função" })
+        } else {
+            const deleteEquipment = await pool.query('UPDATE equipments SET status=($1) where id=($2) and project_id=($3) RETURNING *', [0, id, decoded.project_id])
+            res.status(200).json({ msg: "Excluído com sucesso(s)" })
         }
-        const deleteEquipment = await pool.query('UPDATE equipments SET status=($1) where id=($2) and project_id=($3) RETURNING *', [0, id, decoded.project_id])
-        res.status(200).json({ msg: "Excluído com sucesso(s)" })
+
     } catch (err) {
         console.log(err)
         return res.status(400).json({ msg: "Houve um erro na solicitação: " + err })
@@ -425,7 +436,7 @@ app.get('/equipments/inputType', checkToken, async (req, res) => {
     const tokenRecebido = autHeader && autHeader.split(" ")[1]
     const decoded = jwt.verify(tokenRecebido, secret);
     try {
-        const getEquipments = await pool.query("SELECT DISTINCT equipments.epi_id,epis.type  from equipments JOIN epis ON equipments.epi_id=epis.id where equipments.project_id=($1) AND equipments.status=($2) ORDER BY epis.type ASC", [decoded.project_id, 1])
+        const getEquipments = await pool.query("SELECT DISTINCT equipments.epi_id ,epis.type  from equipments JOIN epis ON equipments.epi_id=epis.id where equipments.project_id=($1) AND equipments.status=($2) ORDER BY epis.type ASC", [decoded.project_id, 1])
 
         res.status(200).send(getEquipments.rows)
     } catch (err) {
@@ -703,6 +714,7 @@ app.patch('/employee/delete/:id', checkToken, async (req, res) => {
         const decoded = jwt.verify(tokenRecebido, secret);
 
         const deleteEmloyees = await pool.query('UPDATE employees SET status=($1) where id=($2) and project_id=($3) RETURNING *', [0, id, decoded.project_id])
+        const deleteControls = await pool.query('UPDATE controls SET status=($1) where employee_id=($2) and project_id=($3) RETURNING *', [0, id, decoded.project_id])
         res.status(200).json({ msg: "Excluído com sucesso(s)" })
     } catch (err) {
         console.log(err)
@@ -759,23 +771,35 @@ app.patch('/control/update', checkToken, async (req, res) => {
 
     const dataHora = new Date();
     dataHora.setHours(dataHora.getHours() - 3);
+    console.log('começando...')
     try {
         const autHeader = req.headers['authorization']
         const tokenRecebido = autHeader && autHeader.split(" ")[1]
         const decoded = jwt.verify(tokenRecebido, secret);
+
         if (id) {
-            let updateControl = await pool.query('UPDATE controls SET approval_certificate=($1), qty=($2), motive=($3), provided_at=($4) where id=($5) RETURNING *', [approval_certificate, qty, motive, provided_at, id])
-            let getControl = await pool.query("SELECT controls.id,controls.approval_certificate,controls.equipment_id,controls.qty,CASE WHEN controls.provided_at  >= now() THEN 'EM DIA' WHEN controls.provided_at < now()  THEN 'VENCIDO' END statuscontrol,to_char(controls.provided_at, 'DD/MM/YYYY') as provided_at ,CASE WHEN controls.motive = '1' THEN 'ADMISSAO' WHEN controls.motive = '2' THEN 'TROCA PERIODICA' WHEN controls.motive = '3' THEN 'DESGASTE IRREGULAR' WHEN controls.motive = '4' THEN 'DESGASTE JUSTIFICADO' WHEN controls.motive = '5' THEN 'PERCA/EXTRAVIO' WHEN controls.motive = '6' THEN 'NOVO EPI VINCULADO A FUNCAO' END motive,epis.type,employees.name as nameemployee,offices.name as nameoffice,equipments.classification_size_id,classification_sizes.size FROM controls JOIN epis ON controls.epi_id= epis.id JOIN employees ON controls.employee_id=employees.id JOIN offices ON controls.office_id=offices.id JOIN equipments ON controls.equipment_id= equipments.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id  where controls.project_id=($1) AND controls.id=($2)", [decoded.project_id, id])
-            let updateEquipment = await pool.query('UPDATE equipments SET current_balance= current_balance+($1) where id=($2) and project_id=($3) RETURNING *', [qty, classification_size_id, decoded.project_id])
-            let newProvidedEquipment = await pool.query('INSERT INTO provided_histories ( employee_id,office_id, epi_id, equipment_id, approval_certificate, qty, motive, provided_at,current_price,project_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *', [employee_id, updateControl.rows[0].office_id, epi_id, classification_size_id, approval_certificate, qty, motive, provided_at, updateEquipment.rows[0].price, decoded.project_id])
-            res.status(200).send(getControl.rows[0])
+            const getInfo = await pool.query("SELECT to_char(controls.provided_at, 'YYYY-MM-DD') as provided_at  from controls where id=($1) and project_id=($2) and status=($3)", [id, decoded.project_id, 1])
         } else {
-            let updateControl = await pool.query('UPDATE controls SET equipment_id=($1),approval_certificate=($2), qty=($3), motive=($4), provided_at=($5) where employee_id=($6) and epi_id=($7) and project_id=($8) and status=($9) RETURNING *', [classification_size_id, approval_certificate, qty, motive, provided_at, employee_id, epi_id, decoded.project_id, 1])
-            let getControl = await pool.query("SELECT controls.id,controls.approval_certificate,controls.equipment_id,controls.qty,CASE WHEN controls.provided_at  >= now() THEN 'EM DIA' WHEN controls.provided_at < now()  THEN 'VENCIDO' END statuscontrol,to_char(controls.provided_at, 'DD/MM/YYYY') as provided_at ,CASE WHEN controls.motive = '1' THEN 'ADMISSAO' WHEN controls.motive = '2' THEN 'TROCA PERIODICA' WHEN controls.motive = '3' THEN 'DESGASTE IRREGULAR' WHEN controls.motive = '4' THEN 'DESGASTE JUSTIFICADO' WHEN controls.motive = '5' THEN 'PERCA/EXTRAVIO' WHEN controls.motive = '6' THEN 'NOVO EPI VINCULADO A FUNCAO' END motive,epis.type,employees.name as nameemployee,offices.name as nameoffice,equipments.classification_size_id,classification_sizes.size FROM controls JOIN epis ON controls.epi_id= epis.id JOIN employees ON controls.employee_id=employees.id JOIN offices ON controls.office_id=offices.id JOIN equipments ON controls.equipment_id= equipments.id JOIN classification_sizes ON equipments.classification_size_id=classification_sizes.id  where controls.project_id=($1) AND controls.id=($2)", [decoded.project_id, updateControl.rows[0].id])
-            let updateEquipment = await pool.query('UPDATE equipments SET current_balance= current_balance+($1) where id=($2) and project_id=($3) RETURNING *', [qty, classification_size_id, decoded.project_id])
-            let newProvidedEquipment = await pool.query('INSERT INTO provided_histories ( employee_id,office_id, epi_id, equipment_id, approval_certificate, qty, motive, provided_at,current_price,project_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *', [employee_id, updateControl.rows[0].office_id, epi_id, classification_size_id, approval_certificate, qty, motive, provided_at, updateEquipment.rows[0].price, decoded.project_id])
-            res.status(200).send(getControl.rows[0])
+            console.log('buscando registro anterior...')
+            const getInfo = await pool.query("SELECT to_char(controls.provided_at, 'YYYY-MM-DD') as provided_at,id,equipment_id,epi_id,employee_id,office_id  from controls where employee_id=($1) and epi_id=($2) and project_id=($3) and status=($4)", [employee_id, epi_id, decoded.project_id, 1])
+            console.log(getInfo.rows[0])
         }
+        console.log('atualiando equipamento...')
+        const getEquipment = await pool.query('UPDATE equipments SET current_balance= current_balance+($1) where id=($2) and project_id=($3) RETURNING *', [qty, classification_size_id ?? getInfo.rows[0].equipment_id, decoded.project_id])
+        console.log(getEquipment.rows[0])
+
+        console.log('avaliando data fornecimento...')
+        if (getInfo.rows[0].provided_at < provided_at) {
+            console.log('atualziando controle...')
+            console.log('o anterior é mais velho, será substituido')
+            let updateControl = await pool.query('UPDATE controls SET equipment_id=($1),approval_certificate=($2), qty=($3), motive=($4), provided_at=($5), current_price=($6) where employee_id=($7) and epi_id=($8) and project_id=($9) and status=($10) RETURNING *', [getEquipment.rows[0].id, approval_certificate, qty, motive, provided_at, getEquipment.rows[0].price, employee_id ?? getInfo.rows[0].employee_id, epi_id ?? getInfo.rows[0].epi_id, decoded.project_id, 1])
+            console.log(updateControl.rows[0])
+        } else {
+            console.log('o anterior é mais novo, somente hisotrico')
+        }
+        console.log('inserindo no historico...')
+        const newProvidedEquipment = await pool.query('INSERT INTO provided_histories (employee_id,office_id, epi_id, equipment_id, approval_certificate, qty, motive, provided_at,current_price,project_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *', [employee_id ?? getInfo.rows[0].employee_id, getInfo.rows[0].office_id, getEquipment.rows[0].epi_id, getEquipment.rows[0].id, approval_certificate, qty, motive, provided_at, getEquipment.rows[0].price, decoded.project_id])
+        console.log(newProvidedEquipment.rows[0])
 
     } catch (err) {
         console.log(err)
