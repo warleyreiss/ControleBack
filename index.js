@@ -771,35 +771,32 @@ app.patch('/control/update', checkToken, async (req, res) => {
 
     const dataHora = new Date();
     dataHora.setHours(dataHora.getHours() - 3);
+    let getInfo=''
+    let history=''
     console.log('começando...')
     try {
         const autHeader = req.headers['authorization']
         const tokenRecebido = autHeader && autHeader.split(" ")[1]
         const decoded = jwt.verify(tokenRecebido, secret);
 
-        if (id) {
-            const getInfo = await pool.query("SELECT to_char(controls.provided_at, 'YYYY-MM-DD') as provided_at  from controls where id=($1) and project_id=($2) and status=($3)", [id, decoded.project_id, 1])
-        } else {
+        if(req.body.id){
+             getInfo = await pool.query("SELECT to_char(controls.provided_at, 'YYYY-MM-DD') as provided_at,id,office_id  from controls where id=($1) and project_id=($2) and status=($3)", [id, decoded.project_id, 1])
+        }
+        if(!req.body.id){
             console.log('buscando registro anterior...')
-            const getInfo = await pool.query("SELECT to_char(controls.provided_at, 'YYYY-MM-DD') as provided_at,id,equipment_id,epi_id,employee_id,office_id  from controls where employee_id=($1) and epi_id=($2) and project_id=($3) and status=($4)", [employee_id, epi_id, decoded.project_id, 1])
-            console.log(getInfo.rows[0])
+            getInfo = await pool.query("SELECT to_char(controls.provided_at, 'YYYY-MM-DD') as provided_at,id,equipment_id,epi_id,employee_id,office_id  from controls where employee_id=($1) and epi_id=($2) and project_id=($3) and status=($4)", [employee_id, epi_id, decoded.project_id, 1])
         }
-        console.log('atualiando equipamento...')
         const getEquipment = await pool.query('UPDATE equipments SET current_balance= current_balance+($1) where id=($2) and project_id=($3) RETURNING *', [qty, classification_size_id ?? getInfo.rows[0].equipment_id, decoded.project_id])
-        console.log(getEquipment.rows[0])
-
-        console.log('avaliando data fornecimento...')
+    
         if (getInfo.rows[0].provided_at < provided_at) {
-            console.log('atualziando controle...')
-            console.log('o anterior é mais velho, será substituido')
             let updateControl = await pool.query('UPDATE controls SET equipment_id=($1),approval_certificate=($2), qty=($3), motive=($4), provided_at=($5), current_price=($6) where employee_id=($7) and epi_id=($8) and project_id=($9) and status=($10) RETURNING *', [getEquipment.rows[0].id, approval_certificate, qty, motive, provided_at, getEquipment.rows[0].price, employee_id ?? getInfo.rows[0].employee_id, epi_id ?? getInfo.rows[0].epi_id, decoded.project_id, 1])
-            console.log(updateControl.rows[0])
-        } else {
-            console.log('o anterior é mais novo, somente hisotrico')
+             history=false
+        }else{
+             history=true
+            //else: somente hisotrico
         }
-        console.log('inserindo no historico...')
-        const newProvidedEquipment = await pool.query('INSERT INTO provided_histories (employee_id,office_id, epi_id, equipment_id, approval_certificate, qty, motive, provided_at,current_price,project_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *', [employee_id ?? getInfo.rows[0].employee_id, getInfo.rows[0].office_id, getEquipment.rows[0].epi_id, getEquipment.rows[0].id, approval_certificate, qty, motive, provided_at, getEquipment.rows[0].price, decoded.project_id])
-        console.log(newProvidedEquipment.rows[0])
+        const newProvidedEquipment = await pool.query('INSERT INTO provided_histories (control_id,employee_id,office_id, epi_id, equipment_id, approval_certificate, qty, motive, provided_at,current_price,project_id,just_history) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *', [getInfo.rows[0].id,employee_id ?? getInfo.rows[0].employee_id, getInfo.rows[0].office_id, getEquipment.rows[0].epi_id, getEquipment.rows[0].id, approval_certificate, qty, motive, provided_at, getEquipment.rows[0].price, decoded.project_id,history])
+        res.status(200).send(newProvidedEquipment.rows[0])
 
     } catch (err) {
         console.log(err)
