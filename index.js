@@ -95,7 +95,6 @@ app.post('/authentication/signin', async (req, res) => {
                     msg: "Seja bem vindo novamente!",
                 })
             } else {
-                console.log('estou aqui não ')
                 res.status(422).json({ msg_alert: "Senha e usuários não conferem" })
             }
         } else {
@@ -805,7 +804,7 @@ app.patch('/control/update', checkToken, async (req, res) => {
         }
         console.log('hisotrico')
         const newProvidedEquipment = await pool.query('INSERT INTO provided_histories (control_id,employee_id,office_id, epi_id, equipment_id, approval_certificate, qty, motive, provided_at,current_price,project_id,just_history) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *', [getInfo.rows[0].id,employee_id ?? getInfo.rows[0].employee_id, getInfo.rows[0].office_id, getEquipment.rows[0].epi_id, getEquipment.rows[0].id, approval_certificate, qty, motive, provided_at, getEquipment.rows[0].price, decoded.project_id,history])
-       // res.status(200).send(newProvidedEquipment.rows[0])
+       res.status(200).send(newProvidedEquipment.rows[0])
 
     } catch (err) {
         console.log(err)
